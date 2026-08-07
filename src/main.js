@@ -2,6 +2,7 @@ import './style.css'
 import { openDocument, renderPage } from './lib/pdfview.js'
 import { signPdf } from './lib/sign.js'
 import { clamp, rotateVec, unrotateVec } from './lib/geometry.js'
+import { DrawPad } from './lib/draw.js'
 
 const state = {
   pdfBytes: null,
@@ -25,6 +26,7 @@ app.innerHTML = `
     <label class="btn-ghost cursor-pointer">
       Add signature image<input id="img-input" type="file" accept="image/png,image/jpeg" multiple class="hidden" />
     </label>
+    <button id="draw-open" class="btn-ghost">Draw signature</button>
     <div class="ml-auto flex items-center gap-2">
       <button id="zoom-out" class="btn-ghost">-</button>
       <span id="zoom-label" class="w-12 text-center text-xs tabular-nums text-slate-400">100%</span>
@@ -82,6 +84,36 @@ app.innerHTML = `
   </div>
 </div>
 <div id="toast" class="pointer-events-none fixed bottom-4 left-1/2 hidden -translate-x-1/2 rounded-md bg-slate-800 px-4 py-2 text-sm shadow-lg ring-1 ring-slate-700"></div>
+
+<div id="draw-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-4">
+  <div class="w-full max-w-2xl rounded-lg bg-slate-900 p-4 shadow-2xl ring-1 ring-slate-700">
+    <div class="mb-3 flex items-center gap-3">
+      <h2 class="text-sm font-semibold">Draw signature</h2>
+      <button id="draw-close" class="btn-ghost ml-auto">Cancel</button>
+    </div>
+
+    <canvas id="draw-canvas" class="h-64 w-full cursor-crosshair rounded-md bg-white"></canvas>
+
+    <div class="mt-3 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="label !inline">Pen</span>
+        <div id="swatches" class="flex gap-1.5"></div>
+        <input id="draw-color" type="color" value="#0f172a"
+               class="h-7 w-8 cursor-pointer rounded border border-slate-700 bg-slate-800 p-0.5" />
+      </div>
+      <div class="flex flex-1 items-center gap-2">
+        <span class="label !inline">Stroke <span id="draw-width-val" class="text-slate-300">3</span></span>
+        <input id="draw-width" type="range" min="1" max="16" step="0.5" value="3"
+               class="w-full min-w-24 flex-1 accent-sky-500" />
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button id="draw-undo" class="btn-ghost">Undo</button>
+        <button id="draw-clear" class="btn-ghost">Clear</button>
+        <button id="draw-save" class="btn-primary">Add to library</button>
+      </div>
+    </div>
+  </div>
+</div>
 `
 
 const $ = (id) => document.getElementById(id)
@@ -162,6 +194,81 @@ function renderLibrary() {
   }
   $('lib-hint').classList.toggle('hidden', state.images.length > 0)
 }
+
+/* ---------- freehand drawing ---------- */
+
+const PEN_COLORS = ['#0f172a', '#1d4ed8', '#dc2626', '#047857']
+const modal = $('draw-modal')
+const pad = new DrawPad($('draw-canvas'))
+
+for (const c of PEN_COLORS) {
+  const b = document.createElement('button')
+  b.className = 'h-6 w-6 rounded-full ring-1 ring-slate-600'
+  b.style.background = c
+  b.dataset.swatch = c
+  b.addEventListener('click', () => setPenColor(c))
+  $('swatches').appendChild(b)
+}
+
+function setPenColor(c) {
+  pad.color = c
+  $('draw-color').value = c
+  for (const b of $('swatches').children) {
+    b.style.outline = b.dataset.swatch === c ? '2px solid #38bdf8' : 'none'
+    b.style.outlineOffset = '2px'
+  }
+}
+
+function openDrawModal() {
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+  pad.resize()
+}
+
+function closeDrawModal() {
+  modal.classList.add('hidden')
+  modal.classList.remove('flex')
+}
+
+$('draw-open').addEventListener('click', openDrawModal)
+$('draw-close').addEventListener('click', closeDrawModal)
+modal.addEventListener('pointerdown', (e) => {
+  if (e.target === modal) closeDrawModal()
+})
+$('draw-undo').addEventListener('click', () => pad.undo())
+$('draw-clear').addEventListener('click', () => pad.clear())
+$('draw-color').addEventListener('input', (e) => setPenColor(e.target.value))
+$('draw-width').addEventListener('input', (e) => {
+  pad.width = Number(e.target.value)
+  $('draw-width-val').textContent = e.target.value
+})
+window.addEventListener('resize', () => {
+  if (!modal.classList.contains('hidden')) pad.resize()
+})
+
+async function saveDrawing() {
+  const png = await pad.toPng()
+  if (!png) return toast('Draw something first')
+  const url = URL.createObjectURL(new Blob([png.bytes], { type: 'image/png' }))
+  const img = {
+    id: `img${state.nextId++}`,
+    name: 'drawn signature',
+    type: 'image/png',
+    bytes: png.bytes,
+    url,
+    nw: png.nw,
+    nh: png.nh,
+  }
+  state.images.push(img)
+  renderLibrary()
+  pad.clear()
+  closeDrawModal()
+  if (state.pages.length) placeImage(img)
+  else toast('Signature saved - open a PDF to place it')
+}
+
+$('draw-save').addEventListener('click', saveDrawing)
+setPenColor(PEN_COLORS[0])
 
 /* ---------- page rendering ---------- */
 
@@ -472,6 +579,10 @@ function deleteSelected() {
 }
 
 document.addEventListener('keydown', (e) => {
+  if (!modal.classList.contains('hidden')) {
+    if (e.key === 'Escape') closeDrawModal()
+    return
+  }
   if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
   if (!selected()) return
   const step = e.shiftKey ? 10 : 1
@@ -543,4 +654,7 @@ window.__pdfSigner = {
   syncAll,
   openDocument,
   renderPage,
+  pad,
+  openDrawModal,
+  saveDrawing,
 }
