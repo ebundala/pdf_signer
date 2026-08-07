@@ -1,0 +1,24 @@
+{
+  "name": "pdf_signer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.4.19",
+    "vite": "^3.2.11"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "allowScripts": {
+    "esbuild@0.15.18": true
+  }
+}

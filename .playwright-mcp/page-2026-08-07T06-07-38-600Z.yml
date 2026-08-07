@@ -1,0 +1,18 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - heading "PDF Signer" [level=1] [ref=f4e5]
+    - generic [ref=f4e6] [cursor=pointer]: Open PDF
+    - generic [ref=f4e7] [cursor=pointer]: Add signature image
+    - generic [ref=f4e8]:
+      - button "-" [ref=f4e9] [cursor=pointer]
+      - generic [ref=f4e10]: 100%
+      - button "+" [ref=f4e11] [cursor=pointer]
+      - button "Download signed PDF" [disabled] [ref=f4e12]
+  - generic [ref=f4e13]:
+    - main [ref=f4e14]:
+      - generic [ref=f4e15]: Open a PDF to begin.
+    - complementary [ref=f4e16]:
+      - generic [ref=f4e17]:
+        - heading "Signature images" [level=2] [ref=f4e18]
+        - paragraph [ref=f4e19]: Add a PNG or JPEG, then click it to drop it on the current page.
+      - paragraph [ref=f4e20]: Drag to move · corner handles resize · amber handle rotates. Hold Shift while rotating to snap to 15°. Arrow keys nudge, Delete removes. Everything runs locally; no file leaves your browser.
